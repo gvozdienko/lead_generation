@@ -1,9 +1,14 @@
+import asyncio
+import threading
+from telethon.sync import TelegramClient
 import telebot
 import mysql.connector
 from create_tables import create_tables
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 from telebot import types
 
+api_id = 22072394
+api_hash = '6dce2bcb9dda5fa5f2e4ce56d24a24db'
+phone_number = '+380960042480'
 # Подключение к базе данных
 mydb = mysql.connector.connect(
     host="localhost",
@@ -25,6 +30,32 @@ if not tables:
 
 # Создание экземпляра бота
 bot = telebot.TeleBot("6044610942:AAFSAakXSNxj4L5RDSFKy5_dmKqEg8dogQk")
+
+
+# Класс для анализа чатов с использованием мьютексов
+class Analyzer:
+    def __init__(self):
+        self._chat_id = None
+        self._members = []
+        self._topic = None
+        self.chat_id_lock = threading.Lock()
+        self.members_lock = threading.Lock()
+        self.topic_lock = threading.Lock()
+
+    def set_chat_id(self, chat_id):
+        with self.chat_id_lock:
+            self.chat_id = chat_id
+
+    def set_members(self, members):
+        with self.members_lock:
+            self.members = members
+
+    def set_topic(self, topic):
+        with self.topic_lock:
+            self.topic = topic
+
+
+analyzer = Analyzer()
 
 
 # Обработчик команды /start
@@ -144,14 +175,16 @@ def callback_handler(call):
         # Удаляем клавиатуру с кнопками
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
+        analyzer.set_topic(selected_topic)
         send_choice_message(call.message.chat.id)
-    elif call.data in ['analysis', 'report']:
+    elif call.data in ['analysis']:
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
+        lead_generation(call.message.chat.id)
     else:
         # Получаем идентификатор выбранного чата из callback_data
-        chat_id = int(call.data)
-        chat_info = bot.get_chat(chat_id)
+        chats_id = int(call.data)
+        chat_info = bot.get_chat(chats_id)
         # Создаем новое сообщение с информацией о выбранном чате
         new_message = f"Выбран чат {chat_info.title}"
         # Отправляем новое сообщение в ответ на нажатую кнопку
@@ -159,11 +192,11 @@ def callback_handler(call):
         # Удаляем клавиатуру с кнопками
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
+        analyzer.set_chat_id(chats_id)
         send_topic_selection_message(call.message.chat.id)
 
 
 def send_topic_selection_message(id):
-
     markup = types.InlineKeyboardMarkup()
     button1 = types.InlineKeyboardButton('Криптовалюта', callback_data='Криптовалюта')
     button2 = types.InlineKeyboardButton('Путешествия', callback_data='Путешествия')
@@ -178,6 +211,24 @@ def send_choice_message(id):
     button2 = types.InlineKeyboardButton('Отчёт', callback_data='report')
     markup.add(button1, button2)
     bot.send_message(chat_id=id, text='Выберите следущее действие', reply_markup=markup)
+
+
+def lead_generation(id):
+    asyncio.run(get_chat_members())
+
+
+async def get_chat_members():
+    async with TelegramClient('lead_generation', api_id, api_hash) as client:
+        chat_id = analyzer.chat_id
+        user_id = []
+        participants = await client.get_participants(chat_id)
+        for participant in participants:
+            user_id.append(participant.id)
+        messages = await client.get_messages(chat_id)
+        for message in messages:
+            # Обработайте сообщение
+            print(message.sender_id, message.text)
+
 
 # Запуск бота
 bot.polling(none_stop=True)
