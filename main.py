@@ -212,7 +212,24 @@ def send_choice_message(id):
 
 
 def lead_generation(id):
- print()
+    # # SQL-запрос для получения всех leads, связанных с заданным chat_id
+    # chats_id = analyzer.chat_id
+    # query_leads = "SELECT chat_id FROM leads WHERE chats_id = %s"
+    # mycursor.execute(query_leads, (chats_id,))
+    # leads = mycursor.fetchall()
+    # print(leads)
+    # # Обработка каждого лида
+    # for lead in leads:
+    #     print(lead)
+    #     # SQL-запрос для получения всех сообщений, связанных с текущим lead_chat_id
+    #     query_messages = "SELECT message FROM messages WHERE chat_id = %s"
+    #     mycursor.execute(query_messages, lead)
+    #     print(mycursor.fetchall())
+    query_leads = "SELECT message FROM messages INNER JOIN leads ON messages.chat_id = leads.chat_id "
+
+
+
+            # Проанализируйте сообщение и выполните нужные операции
 
 
 
@@ -238,8 +255,8 @@ def handle_group_messages(message):
 
     # Сохранение сообщения в таблицу messages
 
-    insert_query = "INSERT INTO messages (chat_id, message) VALUES (%s, %s)"
-    insert_values = (chat_id, message.text)
+    insert_query = "INSERT INTO messages (chat_id, chats_id, message) VALUES (%s, %s, %s)"
+    insert_values = (chat_id, chats_id, message.text)
     mycursor.execute(insert_query, insert_values)
     mydb.commit()
 

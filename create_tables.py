@@ -52,6 +52,7 @@ def create_tables():
         "CREATE TABLE IF NOT EXISTS messages ("
         "id INT AUTO_INCREMENT PRIMARY KEY,"
         "chat_id BIGINT NOT NULL,"
+        "chats_id BIGINT NOT NULL,"
         "message TEXT,"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
         "FOREIGN KEY (chat_id) REFERENCES leads(chat_id) ON DELETE CASCADE"
