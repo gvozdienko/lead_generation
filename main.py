@@ -1,14 +1,11 @@
-import asyncio
 import threading
-from telethon.sync import TelegramClient
 import telebot
 import mysql.connector
 from create_tables import create_tables
 from telebot import types
 
-api_id = 22072394
-api_hash = '6dce2bcb9dda5fa5f2e4ce56d24a24db'
-phone_number = '+380960042480'
+
+bot_id = 6044610942
 # Подключение к базе данных
 mydb = mysql.connector.connect(
     host="localhost",
@@ -59,21 +56,21 @@ analyzer = Analyzer()
 
 
 # Обработчик команды /start
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['start'], chat_types=['private'])
 def send_welcome(message):
     chat_id = message.chat.id
+    if chat_id == 555555359:
+        # Проверяем, есть ли такой пользователь в базе данных
+        mycursor.execute("SELECT id FROM users WHERE chat_id = %s", (chat_id,))
+        result = mycursor.fetchone()
 
-    # Проверяем, есть ли такой пользователь в базе данных
-    mycursor.execute("SELECT id FROM users WHERE chat_id = %s", (chat_id,))
-    result = mycursor.fetchone()
-
-    if result is None:
-        # Если такого пользователя нет, то регистрируем его
-        mycursor.execute("INSERT INTO users (chat_id) VALUES (%s)", (chat_id,))
-        mydb.commit()
-        bot.send_message(chat_id, "Вы успешно зарегистрированы!")
-    else:
-        bot.send_message(chat_id, "Вы уже зарегистрированы в системе!")
+        if result is None:
+            # Если такого пользователя нет, то регистрируем его
+            mycursor.execute("INSERT INTO users (chat_id) VALUES (%s)", (chat_id,))
+            mydb.commit()
+            bot.send_message(chat_id, "Вы успешно зарегистрированы!")
+        else:
+            bot.send_message(chat_id, "Вы уже зарегистрированы в системе!")
         # создаем клавиатуру
         keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
         # создаем кнопку "Чаты"
@@ -92,17 +89,18 @@ def send_welcome(message):
 
 @bot.message_handler(content_types=['new_chat_members'])
 def on_new_chat_member(message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    sql = "INSERT INTO chats (chat_id, user_id) SELECT %s, %s FROM DUAL WHERE NOT EXISTS (SELECT * FROM chats WHERE chat_id = %s AND user_id = %s)"
-    val = (chat_id, user_id, chat_id, user_id)
-    mycursor.execute(sql, val)
-    mydb.commit()
-    bot.reply_to(message,
-                 "Спасибо, что добавили меня в этот чат! Я буду записывать информацию о чатах, в которых я нахожусь.")
+    if message.json['new_chat_participant']['id'] == bot_id:
+        chat_id = message.chat.id
+        user_id = message.from_user.id
+        sql = "INSERT INTO chats (chat_id, user_id) SELECT %s, %s FROM DUAL WHERE NOT EXISTS (SELECT * FROM chats WHERE chat_id = %s AND user_id = %s)"
+        val = (chat_id, user_id, chat_id, user_id)
+        mycursor.execute(sql, val)
+        mydb.commit()
+        bot.reply_to(message,
+                     "Привет, сладкие попки. Дайте админские права")
 
 
-@bot.message_handler(func=lambda message: message.text == 'Чаты')
+@bot.message_handler(func=lambda message: message.text == 'Чаты', chat_types=['private'])
 def show_chats(message):
     user_id = message.chat.id
     mycursor.execute("SELECT chat_id FROM chats WHERE user_id = %s", (user_id,))
@@ -127,7 +125,7 @@ def show_chats(message):
         bot.send_message(message.chat.id, "Список чатов, в которых я состою:\n\n" + "\n".join(chat_names))
 
 
-@bot.message_handler(func=lambda message: message.text == 'Выбрать чат')
+@bot.message_handler(func=lambda message: message.text == 'Выбрать чат', chat_types=['private'])
 def select_chat(message):
     user_id = message.chat.id
     mycursor.execute("SELECT chat_id FROM chats WHERE user_id = %s", (user_id,))
@@ -214,20 +212,36 @@ def send_choice_message(id):
 
 
 def lead_generation(id):
-    asyncio.run(get_chat_members())
+ print()
 
 
-async def get_chat_members():
-    async with TelegramClient('lead_generation', api_id, api_hash) as client:
-        chat_id = analyzer.chat_id
-        user_id = []
-        participants = await client.get_participants(chat_id)
-        for participant in participants:
-            user_id.append(participant.id)
-        messages = await client.get_messages(chat_id)
-        for message in messages:
-            # Обработайте сообщение
-            print(message.sender_id, message.text)
+
+@bot.message_handler(func=lambda message: message.chat.type == "group" or message.chat.type == "supergroup")
+def handle_group_messages(message):
+    chat_id = message.from_user.id
+    chats_id = message.chat.id
+    first_name = message.from_user.first_name
+    last_name = message.from_user.last_name
+    username = message.from_user.username
+    # Проверка наличия лидов с такими же chat_id и chats_id в таблице leads
+    check_query = "SELECT * FROM leads WHERE chat_id = %s AND chats_id = %s"
+    check_values = (chat_id, chats_id)
+    mycursor.execute(check_query, check_values)
+    result = mycursor.fetchone()
+    if result is None:
+        # Запись данных в таблицу leads
+        insert_query = "INSERT INTO leads (chat_id, chats_id, first_name, last_name, username) " \
+                       "VALUES (%s, %s, %s, %s, %s)"
+        insert_values = (chat_id, chats_id, first_name, last_name, username)
+        mycursor.execute(insert_query, insert_values)
+        mydb.commit()
+
+    # Сохранение сообщения в таблицу messages
+
+    insert_query = "INSERT INTO messages (chat_id, message) VALUES (%s, %s)"
+    insert_values = (chat_id, message.text)
+    mycursor.execute(insert_query, insert_values)
+    mydb.commit()
 
 
 # Запуск бота

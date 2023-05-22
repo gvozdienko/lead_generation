@@ -15,7 +15,7 @@ def create_tables():
     # Создание таблицы users
     mycursor.execute("CREATE TABLE IF NOT EXISTS users ("
                      "id INT AUTO_INCREMENT PRIMARY KEY,"
-                     "chat_id INT NOT NULL,"
+                     "chat_id BIGINT NOT NULL,"
                      "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
                      "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
                      "UNIQUE KEY (chat_id)"
@@ -25,7 +25,7 @@ def create_tables():
     mycursor.execute("CREATE TABLE IF NOT EXISTS chats ("
                      "id INT AUTO_INCREMENT PRIMARY KEY,"
                      "chat_id BIGINT NOT NULL,"
-                     "user_id INT NOT NULL,"
+                     "user_id BIGINT NOT NULL,"
                      "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
                      "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
                      "FOREIGN KEY (user_id) REFERENCES users(chat_id) ON DELETE CASCADE,"
@@ -36,7 +36,7 @@ def create_tables():
     mycursor.execute(
         "CREATE TABLE IF NOT EXISTS leads ("
         "id INT AUTO_INCREMENT PRIMARY KEY,"
-        "chat_id INT NOT NULL,"
+        "chat_id BIGINT NOT NULL,"
         "chats_id BIGINT NOT NULL,"
         "first_name VARCHAR(255),"
         "last_name VARCHAR(255),"
@@ -44,8 +44,17 @@ def create_tables():
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
         "INDEX(chat_id),"
-        "UNIQUE KEY(chat_id),"
         "FOREIGN KEY (chats_id) REFERENCES chats(chat_id) ON DELETE CASCADE"
+        ")"
+    )
+#Создание таблицы messages
+    mycursor.execute(
+        "CREATE TABLE IF NOT EXISTS messages ("
+        "id INT AUTO_INCREMENT PRIMARY KEY,"
+        "chat_id BIGINT NOT NULL,"
+        "message TEXT,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "FOREIGN KEY (chat_id) REFERENCES leads(chat_id) ON DELETE CASCADE"
         ")"
     )
 
@@ -53,7 +62,7 @@ def create_tables():
     mycursor.execute(
         "CREATE TABLE IF NOT EXISTS topics ("
         "id INT AUTO_INCREMENT PRIMARY KEY,"
-        "chat_id INT,"
+        "chat_id BIGINT,"
         "topic VARCHAR(255),"
         "interest_count INT,"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
