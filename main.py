@@ -1,11 +1,20 @@
+import nltk
+from nltk.corpus import wordnet
+from nltk.stem.snowball import SnowballStemmer
 import threading
 import telebot
 import mysql.connector
 from create_tables import create_tables
 from telebot import types
 
+nltk.download('punkt')  # Токенизация
+nltk.download('stopwords')  # Стоп-слова
+nltk.download('averaged_perceptron_tagger')  # POS-теггер
+nltk.download('wordnet')
+stemmer = SnowballStemmer('russian')
 
 bot_id = 6044610942
+
 # Подключение к базе данных
 mydb = mysql.connector.connect(
     host="localhost",
@@ -212,27 +221,45 @@ def send_choice_message(id):
 
 
 def lead_generation(id):
-    # # SQL-запрос для получения всех leads, связанных с заданным chat_id
-    # chats_id = analyzer.chat_id
-    # query_leads = "SELECT chat_id FROM leads WHERE chats_id = %s"
-    # mycursor.execute(query_leads, (chats_id,))
-    # leads = mycursor.fetchall()
-    # print(leads)
-    # # Обработка каждого лида
-    # for lead in leads:
-    #     print(lead)
-    #     # SQL-запрос для получения всех сообщений, связанных с текущим lead_chat_id
-    #     query_messages = "SELECT message FROM messages WHERE chat_id = %s"
-    #     mycursor.execute(query_messages, lead)
-    #     print(mycursor.fetchall())
-    query_leads = "SELECT message FROM messages INNER JOIN leads ON messages.chat_id = leads.chat_id "
+
+    chats_id = analyzer.chat_id
+    # Запрос для поиска первого попавшегося лида с совпадающим chat_id
+    select_lead_query = "SELECT chat_id FROM leads WHERE chats_id = %s"
+    mycursor.execute(select_lead_query, (chats_id,))
+    leads = mycursor.fetchall()
+    # # Если найден лида с совпадающим chat_id, продолжаем цикл
+    for lead in leads:
+        for it in lead:
+            # Запрос для получения всех сообщений, связанных с данным лидом
+            select_messages_query = "SELECT messages.message FROM messages WHERE chats_id = %s AND chat_id = %s"
+            insert_values = (chats_id, it, )
+            mycursor.execute(select_messages_query, insert_values)
+            messages = mycursor.fetchall()
+            counter = 0
+            for message in messages:
+                counter = counter + find_mentions(analyzer.topic, message)
+            print(counter)
 
 
-
-            # Проанализируйте сообщение и выполните нужные операции
-
-
-
+def find_mentions(topic, messages):
+    topic = 'Ходить'
+    topic.lower()
+    related_words = set()
+    counter = 0  # Счетчик найденных связанных слов
+    for message in messages:
+        tokens = message.lower().split()
+        for token in tokens:
+            synsets = wordnet.synsets(token)
+            print(synsets)
+            for synset in synsets:
+                for lemma in synset.lemmas():
+                    lemma_name = lemma.name().lower()
+                    if lemma_name != token and topic in lemma_name:
+                        related_words.add(token)
+                        counter += 1  # Увеличиваем счетчик на 1 при каждом найденном связанном слове
+                        break
+    print(counter)
+    return counter
 @bot.message_handler(func=lambda message: message.chat.type == "group" or message.chat.type == "supergroup")
 def handle_group_messages(message):
     chat_id = message.from_user.id
