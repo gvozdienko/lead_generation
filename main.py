@@ -18,6 +18,8 @@ nltk.download('punkt')
 
 bot_id = 6044610942
 
+stop_words = set(stopwords.words('russian'))
+stop_words.update('-', ',', '/', '(', ')', '?', '//', '!', '@', '+', '.')
 # Подключение к базе данных
 mydb = mysql.connector.connect(
     host="localhost",
@@ -229,52 +231,58 @@ def lead_generation(id):
     select_lead_query = "SELECT chat_id FROM leads WHERE chats_id = %s"
     mycursor.execute(select_lead_query, (chats_id,))
     leads = mycursor.fetchall()
-    # # Если найден лида с совпадающим chat_id, продолжаем цикл
+    # Запрос
+    prompt = f"Напиши мне максимально количество близких по смыслу слов к слову {analyzer.topic}. Используй слова только в нормальной форме, можешь использовать глаголы, существительные, прилагательные, сленг и так далее. Твой ответ должен составлять не менее 3700 символов "
+
+    # Модель
+    completion = openai.Completion.create(engine=engine,
+                                          prompt=prompt,
+                                          temperature=1,
+                                          max_tokens=3700)
+    tokens = word_tokenize(completion.choices[0]['text'])
+    generated_words = []
+    for token in tokens:
+        if token.lower() not in stop_words:
+            generated_words.append(token)
+    print(generated_words)
+    # Если найден лида с совпадающим chat_id, продолжаем цикл
     for lead in leads:
         for it in lead:
+            print(bot.get_chat(it))
+            counter = 0
             # Запрос для получения всех сообщений, связанных с данным лидом
             select_messages_query = "SELECT messages.message FROM messages WHERE chats_id = %s AND chat_id = %s"
             insert_values = (chats_id, it,)
             mycursor.execute(select_messages_query, insert_values)
             messages = mycursor.fetchall()
-            preprocess_text(messages)
-
-            # # Запрос
-            # prompt = "ありがと?"
-            #
-            # # Модель
-            # completion = openai.Completion.create(engine=engine,
-            #                                       prompt=prompt,
-            #                                       temperature=0.5,
-            #                                       max_tokens=1000)
-            # print(completion.choices[0]['text'])
+            messages = preprocess_text(messages)
+            for word in generated_words:
+                for message in messages:
+                    if word == message:
+                        print(word)
+                        counter = counter + 1
+            print(counter)
 
 
 def preprocess_text(text_tuple):
-    stop_words = set(stopwords.words('russian'))
-    stop_words.update('-', ',', '/', '(' , ')', '?', '//', '!', '@', '+')
     morph = pymorphy3.MorphAnalyzer()
     lemmas = []
-    filtered_tokens = []
-    for text in text_tuple:
-        processed_sent = []
-        for sent in text:
 
+    for text in text_tuple:
+        for sent in text:
             if isinstance(sent, str):  # Проверяем, что элемент является строкой
                 # Токенизация текста
                 tokens = word_tokenize(sent)
-                # Удаление стоп-слов
-                tokens = [token for token in tokens if token.lower() not in stop_words]
-
+                filtered_tokens = []
+                # Лемматизация и удаление стоп-слов
                 for token in tokens:
                     if token.lower() not in stop_words:
                         filtered_tokens.append(token)
-                # Лемматизация токенов
-                for token in filtered_tokens:
-                    parsed_token = morph.parse(token)[0]
-                    normal_form = parsed_token.normal_form
-                    lemmas.append(normal_form)
-    print (lemmas)
+                        parsed_token = morph.parse(token)[0]
+                        normal_form = parsed_token.normal_form
+                        lemmas.append(normal_form)
+
+    print(lemmas)
     return lemmas
 
 
