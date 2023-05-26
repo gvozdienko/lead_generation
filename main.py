@@ -1,17 +1,20 @@
-import nltk
-from nltk.corpus import wordnet
-from nltk.stem.snowball import SnowballStemmer
 import threading
+import aiohttp
 import telebot
 import mysql.connector
+from nltk import word_tokenize
+import pymorphy3
+import nltk
+from nltk.corpus import stopwords
 from create_tables import create_tables
 from telebot import types
+import openai
 
-nltk.download('punkt')  # Токенизация
-nltk.download('stopwords')  # Стоп-слова
-nltk.download('averaged_perceptron_tagger')  # POS-теггер
-nltk.download('wordnet')
-stemmer = SnowballStemmer('russian')
+openai.api_key = "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"
+engine = "text-davinci-003"
+
+nltk.download('stopwords')
+nltk.download('punkt')
 
 bot_id = 6044610942
 
@@ -221,7 +224,6 @@ def send_choice_message(id):
 
 
 def lead_generation(id):
-
     chats_id = analyzer.chat_id
     # Запрос для поиска первого попавшегося лида с совпадающим chat_id
     select_lead_query = "SELECT chat_id FROM leads WHERE chats_id = %s"
@@ -232,34 +234,50 @@ def lead_generation(id):
         for it in lead:
             # Запрос для получения всех сообщений, связанных с данным лидом
             select_messages_query = "SELECT messages.message FROM messages WHERE chats_id = %s AND chat_id = %s"
-            insert_values = (chats_id, it, )
+            insert_values = (chats_id, it,)
             mycursor.execute(select_messages_query, insert_values)
             messages = mycursor.fetchall()
-            counter = 0
-            for message in messages:
-                counter = counter + find_mentions(analyzer.topic, message)
-            print(counter)
+            preprocess_text(messages)
+
+            # # Запрос
+            # prompt = "ありがと?"
+            #
+            # # Модель
+            # completion = openai.Completion.create(engine=engine,
+            #                                       prompt=prompt,
+            #                                       temperature=0.5,
+            #                                       max_tokens=1000)
+            # print(completion.choices[0]['text'])
 
 
-def find_mentions(topic, messages):
-    topic = 'Ходить'
-    topic.lower()
-    related_words = set()
-    counter = 0  # Счетчик найденных связанных слов
-    for message in messages:
-        tokens = message.lower().split()
-        for token in tokens:
-            synsets = wordnet.synsets(token)
-            print(synsets)
-            for synset in synsets:
-                for lemma in synset.lemmas():
-                    lemma_name = lemma.name().lower()
-                    if lemma_name != token and topic in lemma_name:
-                        related_words.add(token)
-                        counter += 1  # Увеличиваем счетчик на 1 при каждом найденном связанном слове
-                        break
-    print(counter)
-    return counter
+def preprocess_text(text_tuple):
+    stop_words = set(stopwords.words('russian'))
+    stop_words.update('-', ',', '/', '(' , ')', '?', '//', '!', '@', '+')
+    morph = pymorphy3.MorphAnalyzer()
+    lemmas = []
+    filtered_tokens = []
+    for text in text_tuple:
+        processed_sent = []
+        for sent in text:
+
+            if isinstance(sent, str):  # Проверяем, что элемент является строкой
+                # Токенизация текста
+                tokens = word_tokenize(sent)
+                # Удаление стоп-слов
+                tokens = [token for token in tokens if token.lower() not in stop_words]
+
+                for token in tokens:
+                    if token.lower() not in stop_words:
+                        filtered_tokens.append(token)
+                # Лемматизация токенов
+                for token in filtered_tokens:
+                    parsed_token = morph.parse(token)[0]
+                    normal_form = parsed_token.normal_form
+                    lemmas.append(normal_form)
+    print (lemmas)
+    return lemmas
+
+
 @bot.message_handler(func=lambda message: message.chat.type == "group" or message.chat.type == "supergroup")
 def handle_group_messages(message):
     chat_id = message.from_user.id
