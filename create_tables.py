@@ -64,6 +64,7 @@ def create_tables():
         "CREATE TABLE IF NOT EXISTS topics ("
         "id INT AUTO_INCREMENT PRIMARY KEY,"
         "chat_id BIGINT,"
+        "chats_id BIGINT,"
         "topic VARCHAR(255),"
         "interest_count INT,"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"

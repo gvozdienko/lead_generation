@@ -11,7 +11,8 @@ from telebot import types
 import openai
 
 openai.api_key = "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"
-engine = "text-davinci-003"
+# engine = "text-davinci-003"
+engine = "gpt-3.5-turbo"
 
 nltk.download('stopwords')
 nltk.download('punkt')
@@ -19,7 +20,7 @@ nltk.download('punkt')
 bot_id = 6044610942
 
 stop_words = set(stopwords.words('russian'))
-stop_words.update('-', ',', '/', '(', ')', '?', '//', '!', '@', '+', '.')
+stop_words.update('-', ',', '/', '(', ')', '?', '//', '!', '@', '+', '.', ':', ';','1','2','3','4','5','6','7','8','9','0', 'глаголы', 'существительные')
 # Подключение к базе данных
 mydb = mysql.connector.connect(
     host="localhost",
@@ -232,23 +233,39 @@ def lead_generation(id):
     mycursor.execute(select_lead_query, (chats_id,))
     leads = mycursor.fetchall()
     # Запрос
-    prompt = f"Напиши мне максимально количество близких по смыслу слов к слову {analyzer.topic}. Используй слова только в нормальной форме, можешь использовать глаголы, существительные, прилагательные, сленг и так далее. Твой ответ должен составлять не менее 3700 символов "
-
+    prompt = f"Похожие по смыслу глаголы и существительные для темы {analyzer.topic}. Ответ на 1500 символов, в формате перечисления по одному слову, без словосочетаний и выражений"
     # Модель
-    completion = openai.Completion.create(engine=engine,
-                                          prompt=prompt,
-                                          temperature=1,
-                                          max_tokens=3700)
-    tokens = word_tokenize(completion.choices[0]['text'])
+    completion = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": prompt}
+        ],
+        temperature=0.6,
+        max_tokens=1500
+    )
+    tokens = word_tokenize(completion.choices[0]['message']['content'])
     generated_words = []
     for token in tokens:
-        if token.lower() not in stop_words:
+        token = token.lower()
+        if token not in stop_words:
             generated_words.append(token)
-    print(generated_words)
+    #print(generated_words)
+    if analyzer.topic == "Криптовалюта":
+        analyzer.set_topic('crypto')
+        add_word_query(generated_words)
+    elif analyzer.topic == "IT":
+        analyzer.set_topic('it')
+        add_word_query(generated_words)
+    elif analyzer.topic == "Путешествия":
+        analyzer.set_topic('travel')
+        add_word_query(generated_words)
+    mycursor.execute(f"SELECT word FROM {analyzer.topic}")
+    words = mycursor.fetchall()
+
     # Если найден лида с совпадающим chat_id, продолжаем цикл
     for lead in leads:
         for it in lead:
-            print(bot.get_chat(it))
+           # print(bot.get_chat(it))
             counter = 0
             # Запрос для получения всех сообщений, связанных с данным лидом
             select_messages_query = "SELECT messages.message FROM messages WHERE chats_id = %s AND chat_id = %s"
@@ -256,18 +273,43 @@ def lead_generation(id):
             mycursor.execute(select_messages_query, insert_values)
             messages = mycursor.fetchall()
             messages = preprocess_text(messages)
-            for word in generated_words:
-                for message in messages:
-                    if word == message:
-                        print(word)
-                        counter = counter + 1
-            print(counter)
+            for word in words:
+                for w in word:
+                    for message in messages:
+                        if w == message:
+                           # print(w)
+                            counter = counter + 1
+            #print(counter)
+            query = "SELECT * FROM topics WHERE chat_id = %s AND chats_id = %s AND topic = %s"
+            values = (it, analyzer.chat_id, analyzer.topic)
+            mycursor.execute(query, values)
+            existing_record = mycursor.fetchone()
+
+            if existing_record:
+                # Запись существует, выполнение обновления
+                update_query = "UPDATE topics SET interest_count = %s, updated_at = NOW() WHERE chat_id = %s AND chats_id = %s"
+                update_values = (counter, it, analyzer.chat_id)
+                mycursor.execute(update_query, update_values)
+                mydb.commit()
+            else:
+                # Запись не существует, выполнение вставки
+                insert_query = "INSERT INTO topics (chat_id, chats_id, topic, interest_count, created_at, updated_at) VALUES (%s, %s, %s, %s, NOW(), NOW())"
+                insert_values = (it, analyzer.chat_id, analyzer.topic, counter)
+                mycursor.execute(insert_query, insert_values)
+                mydb.commit()
+    print_report()
+
+
+def add_word_query(words):
+    add_word_query = f"INSERT IGNORE INTO {analyzer.topic} (word) VALUES (%s)"
+    for word in words:
+        mycursor.execute(add_word_query, (word,))
+    mydb.commit()
 
 
 def preprocess_text(text_tuple):
     morph = pymorphy3.MorphAnalyzer()
     lemmas = []
-
     for text in text_tuple:
         for sent in text:
             if isinstance(sent, str):  # Проверяем, что элемент является строкой
@@ -282,9 +324,16 @@ def preprocess_text(text_tuple):
                         normal_form = parsed_token.normal_form
                         lemmas.append(normal_form)
 
-    print(lemmas)
+    #print(lemmas)
     return lemmas
 
+def print_report():
+    query = "SELECT * from topics WHERE chats_id = %s AND topic = %s"
+    values = (analyzer.chat_id, analyzer.topic)
+    mycursor.execute(query, values)
+    results = mycursor.fetchall()
+    for result in results:
+        print(result)
 
 @bot.message_handler(func=lambda message: message.chat.type == "group" or message.chat.type == "supergroup")
 def handle_group_messages(message):
