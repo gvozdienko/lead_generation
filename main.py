@@ -20,7 +20,8 @@ nltk.download('punkt')
 bot_id = 6044610942
 
 stop_words = set(stopwords.words('russian'))
-stop_words.update('-', ',', '/', '(', ')', '?', '//', '!', '@', '+', '.', ':', ';','1','2','3','4','5','6','7','8','9','0', 'глаголы', 'существительные')
+stop_words.update('-', ',', '/', '(', ')', '?', '//', '!', '@', '+', '.', ':', ';', '1', '2', '3', '4', '5', '6', '7',
+                  '8', '9', '0', 'глаголы', 'существительные')
 # Подключение к базе данных
 mydb = mysql.connector.connect(
     host="localhost",
@@ -188,12 +189,24 @@ def callback_handler(call):
         # Удаляем клавиатуру с кнопками
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
+        if selected_topic == "Путешествия":
+            selected_topic = 'travel'
+        elif selected_topic == "Криптовалюта":
+            selected_topic = 'crypto'
+        elif selected_topic == "IT":
+            selected_topic = 'it'
         analyzer.set_topic(selected_topic)
         send_choice_message(call.message.chat.id)
     elif call.data in ['analysis']:
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
+        bot.send_message(call.message.chat.id, f"Идёт обработка информации. Ожидайте вывод отчёта")
         lead_generation(call.message.chat.id)
+    elif call.data in ['report']:
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                                      reply_markup=None)
+        bot.send_message(call.message.chat.id, f"Идёт обработка информации. Ожидайте вывод отчёта")
+        print_report(call.message.chat.id)
     else:
         # Получаем идентификатор выбранного чата из callback_data
         chats_id = int(call.data)
@@ -249,15 +262,12 @@ def lead_generation(id):
         token = token.lower()
         if token not in stop_words:
             generated_words.append(token)
-    #print(generated_words)
-    if analyzer.topic == "Криптовалюта":
-        analyzer.set_topic('crypto')
+    if analyzer.topic == "crypto":
         add_word_query(generated_words)
     elif analyzer.topic == "IT":
-        analyzer.set_topic('it')
+
         add_word_query(generated_words)
-    elif analyzer.topic == "Путешествия":
-        analyzer.set_topic('travel')
+    elif analyzer.topic == 'travel':
         add_word_query(generated_words)
     mycursor.execute(f"SELECT word FROM {analyzer.topic}")
     words = mycursor.fetchall()
@@ -265,7 +275,6 @@ def lead_generation(id):
     # Если найден лида с совпадающим chat_id, продолжаем цикл
     for lead in leads:
         for it in lead:
-           # print(bot.get_chat(it))
             counter = 0
             # Запрос для получения всех сообщений, связанных с данным лидом
             select_messages_query = "SELECT messages.message FROM messages WHERE chats_id = %s AND chat_id = %s"
@@ -277,9 +286,7 @@ def lead_generation(id):
                 for w in word:
                     for message in messages:
                         if w == message:
-                           # print(w)
                             counter = counter + 1
-            #print(counter)
             query = "SELECT * FROM topics WHERE chat_id = %s AND chats_id = %s AND topic = %s"
             values = (it, analyzer.chat_id, analyzer.topic)
             mycursor.execute(query, values)
@@ -297,7 +304,7 @@ def lead_generation(id):
                 insert_values = (it, analyzer.chat_id, analyzer.topic, counter)
                 mycursor.execute(insert_query, insert_values)
                 mydb.commit()
-    print_report()
+    print_report(id)
 
 
 def add_word_query(words):
@@ -324,16 +331,30 @@ def preprocess_text(text_tuple):
                         normal_form = parsed_token.normal_form
                         lemmas.append(normal_form)
 
-    #print(lemmas)
     return lemmas
 
-def print_report():
+
+def print_report(chat_id):
     query = "SELECT * from topics WHERE chats_id = %s AND topic = %s"
     values = (analyzer.chat_id, analyzer.topic)
     mycursor.execute(query, values)
     results = mycursor.fetchall()
-    for result in results:
-        print(result)
+    message = ""
+    if results:
+        for result in results:
+            query = "SELECT first_name, last_name, username from leads WHERE chats_id = %s AND chat_id = %s"
+            values = (analyzer.chat_id, result[1])
+            mycursor.execute(query, values)
+            responce = mycursor.fetchone()
+            name = str(responce[0]) if responce[0] is not None else "Неизвестно"
+            surname = str(responce[1]) if responce[1] is not None else "Неизвестно"
+            username = str(responce[2]) if responce[2] is not None else "Неизвестно"
+            msg = "Имя - " + name + "\n" + "Фамилия - " + surname + "\n" + "Имя пользователя - " + username
+            message = str(msg) + "\n" + "Количество заинтересованностей в заданной теме - " + str(result[4])
+            bot.send_message(chat_id=chat_id, text=message)
+    else:
+        bot.send_message(chat_id=chat_id, text="Нет результатов для отчёта")
+
 
 @bot.message_handler(func=lambda message: message.chat.type == "group" or message.chat.type == "supergroup")
 def handle_group_messages(message):
