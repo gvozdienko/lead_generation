@@ -38,24 +38,17 @@ bot = config.TELEGRAM_BOT_API_KEY
 class Analyzer:
     def __init__(self):
         self._chat_id = None
-        self._members = []
         self._topic = None
         self.chat_id_lock = threading.Lock()
-        self.members_lock = threading.Lock()
         self.topic_lock = threading.Lock()
 
     def set_chat_id(self, chat_id):
         with self.chat_id_lock:
             self.chat_id = chat_id
 
-    def set_members(self, members):
-        with self.members_lock:
-            self.members = members
-
     def set_topic(self, topic):
         with self.topic_lock:
             self.topic = topic
-
 
 analyzer = Analyzer()
 
@@ -100,7 +93,7 @@ def on_new_chat_member(message):
         mycursor.execute(sql, val)
         mydb.commit()
         bot.reply_to(message,
-                     "Привет, сладкие попки. Дайте админские права")
+                     "Здравствуйте. Я буду анализировать данный текстовый чат. Прошу назначить меня администратором")
 
 @bot.message_handler(func=lambda message: message.text == 'Чаты', chat_types=['private'])
 def show_chats(message):
@@ -253,13 +246,11 @@ def lead_generation(id):
             mycursor.execute(select_messages_query, insert_values)
             messages = mycursor.fetchall()
             messages = preprocess_text(messages)
-            print(messages)
             for word in words:
                 for w in word:
                     for message in messages:
                         if w == message:
                             counter = counter + 1
-                            print(w)
             query = "SELECT * FROM topics WHERE chat_id = %s AND chats_id = %s AND topic = %s"
             values = (it, analyzer.chat_id, analyzer.topic)
             mycursor.execute(query, values)
