@@ -51,14 +51,31 @@ def create_tables():
     mycursor.execute(
         "CREATE TABLE IF NOT EXISTS messages ("
         "id INT AUTO_INCREMENT PRIMARY KEY,"
-        "chat_id BIGINT NOT NULL,"
-        "chats_id BIGINT NOT NULL,"
-        "message TEXT,"
+        "chat_id BIGINT ,"
+        "chats_id BIGINT ,"
+        "message VARCHAR(255),"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
         "FOREIGN KEY (chat_id) REFERENCES leads(chat_id) ON DELETE CASCADE"
         ")"
     )
+    # Создание таблицы categories
+    mycursor.execute(
+        "CREATE TABLE IF NOT EXISTS categories ("
+        "id INT AUTO_INCREMENT PRIMARY KEY,"
+        "category TEXT ,"
+        ")"
+    )
 
+    # Создание таблицы vocabulary
+    mycursor.execute(
+        "CREATE TABLE IF NOT EXISTS vocabulary ("
+        "id INT AUTO_INCREMENT PRIMARY KEY,"
+        "category_id INT ,"
+        "word VARCHAR(255) ,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE"
+        ")"
+    )
     # Создание таблицы topics
     mycursor.execute(
         "CREATE TABLE IF NOT EXISTS topics ("
@@ -71,7 +88,6 @@ def create_tables():
         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
         "FOREIGN KEY (chat_id) REFERENCES leads (chat_id) ON DELETE CASCADE"
         ")")
-
 
     # Сохранение изменений
     mydb.commit()

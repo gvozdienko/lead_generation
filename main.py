@@ -17,24 +17,24 @@ bot_id = config.BOT_ID
 
 stop_words = config.STOP_WORDS
 
-# Подключение к базе данных
+# Підключення до бази даних
 mydb = config.MYSQL
 
-# Создание курсора
+# Створення курсору
 mycursor = mydb.cursor()
 
-# Проверка, существуют ли таблицы
+# Перевірка, чи існують таблиці
 mycursor.execute("SHOW TABLES")
 tables = mycursor.fetchall()
 
 if not tables:
-    # Создание таблиц, если они не существуют
+    # Створення таблиць, якщо вони не існують
     create_tables()
 
-# Создание экземпляра бота
+# Створення екземпляра бота
 bot = config.TELEGRAM_BOT_API_KEY
 
-# Класс для анализа чатов с использованием мьютексов
+# Клас для аналізу чатів
 class Analyzer:
     def __init__(self):
         self._chat_id = None
@@ -52,35 +52,35 @@ class Analyzer:
 
 analyzer = Analyzer()
 
-# Обработчик команды /start
+# Обробник команди /start
 @bot.message_handler(commands=['start'], chat_types=['private'])
 def send_welcome(message):
     chat_id = message.chat.id
     if chat_id == 555555359:
-        # Проверяем, есть ли такой пользователь в базе данных
+        # Перевіряємо, чи є такий користувач у базі даних
         mycursor.execute("SELECT id FROM users WHERE chat_id = %s", (chat_id,))
         result = mycursor.fetchone()
 
         if result is None:
-            # Если такого пользователя нет, то регистрируем его
+            # Якщо такого користувача немає, то реєструємо його
             mycursor.execute("INSERT INTO users (chat_id) VALUES (%s)", (chat_id,))
             mydb.commit()
-            bot.send_message(chat_id, "Вы успешно зарегистрированы!")
+            bot.send_message(chat_id, "Ви успішно зареєстровані!")
         else:
-            bot.send_message(chat_id, "Вы уже зарегистрированы в системе!")
-        # создаем клавиатуру
+            bot.send_message(chat_id, "Ви вже зареєстровані у системі!")
+        # створюємо клавіатуру
         keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
         # создаем кнопку "Чаты"
-        chats_button = types.KeyboardButton('Чаты')
-        # добавляем кнопку на клавиатуру
+        chats_button = types.KeyboardButton('Чати')
+        # додаємо кнопку на клавіатуру
         keyboard.add(chats_button)
-        # создаем кнопку "Выбрать чаты"
-        chats_button = types.KeyboardButton('Выбрать чат')
-        # добавляем кнопку на клавиатуру
+        # створюємо кнопку "Вибрати чати"
+        chats_button = types.KeyboardButton('Вибрати чат')
+        # додаємо кнопку на клавіатуру
         keyboard.add(chats_button)
-        # отправляем сообщение с использованием клавиатуры
+        # надсилаємо повідомлення з використанням клавіатури
         bot.send_message(chat_id,
-                         "Пожалуйста, добавьте меня в нужный чат, а затем нажмите кнопку Чаты, чтобы узнать был ли добавлен бот ",
+                         "Будь ласка, додайте мене до потрібного чату, а потім натисніть кнопку Чати, щоб дізнатися чи був доданий бот ",
                          reply_markup=keyboard)
 
 @bot.message_handler(content_types=['new_chat_members'])
@@ -93,38 +93,38 @@ def on_new_chat_member(message):
         mycursor.execute(sql, val)
         mydb.commit()
         bot.reply_to(message,
-                     "Здравствуйте. Я буду анализировать данный текстовый чат. Прошу назначить меня администратором")
+                     "Вітаю. Я аналізуватиму цей текстовий чат. Прошу призначити мене адміністратором")
 
-@bot.message_handler(func=lambda message: message.text == 'Чаты', chat_types=['private'])
+@bot.message_handler(func=lambda message: message.text == 'Чати', chat_types=['private'])
 def show_chats(message):
     user_id = message.chat.id
     mycursor.execute("SELECT chat_id FROM chats WHERE user_id = %s", (user_id,))
     chats = mycursor.fetchall()
-    # Создаем список для названий чатов
+    # Створюємо список для назв чатів
     chat_names = []
-    # Для каждого чата находим его название и добавляем его в список
+    # Для кожного чату знаходимо його назву та додаємо його до списку
     for chat in chats:
         try:
             chat_info = bot.get_chat(chat)
             chat_names.append(chat_info.title)
         except:
             pass
-    # Если список пустой, значит бот не состоит ни в одном чате
+    # Якщо список порожній, значить бот не перебуває в жодному чаті
     if not chat_names:
-        bot.send_message(message.chat.id, "Бот не состоит ни в одном чате.")
+        bot.send_message(message.chat.id, "Бот не доданий в жодний чат.")
     else:
-        # Отправляем список названий чатов в виде текста
-        bot.send_message(message.chat.id, "Список чатов, в которых я состою:\n\n" + "\n".join(chat_names))
+        # Надсилаємо список назв чатів у вигляді тексту
+        bot.send_message(message.chat.id, "Список чатів, в яких я перебуваю:\n" + "\n".join(chat_names))
 
-@bot.message_handler(func=lambda message: message.text == 'Выбрать чат', chat_types=['private'])
+@bot.message_handler(func=lambda message: message.text == 'Вибрати чат', chat_types=['private'])
 def select_chat(message):
     user_id = message.chat.id
     mycursor.execute("SELECT chat_id FROM chats WHERE user_id = %s", (user_id,))
     chats = mycursor.fetchall()
-    # Создаем список для названий чатов и их идентификаторов
+    # Створюємо список для назв чатів та їх ідентифікаторів
     chat_names = []
     chat_ids = []
-    # Для каждого чата находим его название и добавляем его в список
+    # Для кожного чату знаходимо його назву та додаємо його до списку
     for chat in chats:
         try:
             chat_info = bot.get_chat(chat)
@@ -133,34 +133,33 @@ def select_chat(message):
         except:
             pass
 
-    # Если список пустой, значит бот не состоит ни в одном чате
+    # Якщо список порожній, значить бот не перебуває в жодному чаті
     if not chat_names:
-        bot.send_message(message.chat.id, "Бот не состоит ни в одном чате.")
+        bot.send_message(message.chat.id, "Бот не доданий в жодний чат.")
     else:
-        # Создаем клавиатуру
+        # Створюємо клавіатуру
         keyboard = types.InlineKeyboardMarkup(row_width=1)
-
-        # Добавляем кнопки для каждого чата
+        # Додаємо кнопки для кожного чату
         for i in range(len(chat_names)):
             callback_data = str(chat_ids[i])
             button = types.InlineKeyboardButton(text=chat_names[i], callback_data=callback_data)
             keyboard.add(button)
-        # Отправляем сообщение с использованием клавиатуры
-        bot.send_message(message.chat.id, "Пожалуйста, выберите чат:", reply_markup=keyboard)
+        # Надсилаємо повідомлення за допомогою клавіатури
+        bot.send_message(message.chat.id, "Будь ласка, виберіть чат:", reply_markup=keyboard)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
-    # Обрабатываем нажатие кнопки со списком чатов
+    # Обробляємо натискання кнопки зі списком чатів
     if call.data == 'show_chats':
         show_chats(call.message)
-    elif call.data in ['Криптовалюта', 'Путешествия', 'IT']:
+    elif call.data in ['Криптовалюта', 'Подорожі', 'IT']:
         selected_topic = call.data
-        # Отправляем сообщение с выбранной темой
-        bot.send_message(call.message.chat.id, f"Выбрана тема {selected_topic}")
-        # Удаляем клавиатуру с кнопками
+        # Надсилаємо повідомлення з обраною темою
+        bot.send_message(call.message.chat.id, f"Вибрано тему {selected_topic}")
+        # Видаляємо клавіатуру з кнопками
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
-        if selected_topic == "Путешествия":
+        if selected_topic == "Подорожі":
             selected_topic = "travel"
         elif selected_topic == "Криптовалюта":
             selected_topic = "crypto"
@@ -171,22 +170,22 @@ def callback_handler(call):
     elif call.data in ['analysis']:
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
-        bot.send_message(call.message.chat.id, f"Идёт обработка информации. Ожидайте вывод отчёта")
+        bot.send_message(call.message.chat.id, "Обробка інформації. Чекайте на звіт")
         lead_generation(call.message.chat.id)
     elif call.data in ['report']:
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
-        bot.send_message(call.message.chat.id, f"Идёт обработка информации. Ожидайте вывод отчёта")
+        bot.send_message(call.message.chat.id, "Обробка інформації. Чекайте на звіт")
         print_report(call.message.chat.id)
     else:
-        # Получаем идентификатор выбранного чата из callback_data
+        # Отримуємо ідентифікатор вибраного чату з callback_data
         chats_id = int(call.data)
         chat_info = bot.get_chat(chats_id)
-        # Создаем новое сообщение с информацией о выбранном чате
-        new_message = f"Выбран чат {chat_info.title}"
-        # Отправляем новое сообщение в ответ на нажатую кнопку
+        # Створюємо нове повідомлення з інформацією про обраний чат
+        new_message = f"Вибраний чат {chat_info.title}"
+        # Надсилаємо нове повідомлення у відповідь на натиснуту кнопку
         bot.send_message(call.message.chat.id, new_message)
-        # Удаляем клавиатуру с кнопками
+        # Видаляємо клавіатуру з кнопками
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
         analyzer.set_chat_id(chats_id)
@@ -195,17 +194,17 @@ def callback_handler(call):
 def send_topic_selection_message(id):
     markup = types.InlineKeyboardMarkup()
     button1 = types.InlineKeyboardButton('Криптовалюта', callback_data='Криптовалюта')
-    button2 = types.InlineKeyboardButton('Путешествия', callback_data='Путешествия')
+    button2 = types.InlineKeyboardButton('Подорожі', callback_data='Подорожі')
     button3 = types.InlineKeyboardButton('IT', callback_data='IT')
     markup.add(button1, button2, button3)
-    bot.send_message(chat_id=id, text='Выберите тему', reply_markup=markup)
+    bot.send_message(chat_id=id, text='Виберіть тему', reply_markup=markup)
 
 def send_choice_message(id):
     markup = types.InlineKeyboardMarkup()
-    button1 = types.InlineKeyboardButton('Анализ', callback_data='analysis')
-    button2 = types.InlineKeyboardButton('Отчёт', callback_data='report')
+    button1 = types.InlineKeyboardButton('Аналіз', callback_data='analysis')
+    button2 = types.InlineKeyboardButton('Звіт', callback_data='report')
     markup.add(button1, button2)
-    bot.send_message(chat_id=id, text='Выберите следущее действие', reply_markup=markup)
+    bot.send_message(chat_id=id, text='Виберіть наступну дію', reply_markup=markup)
 
 def lead_generation(id):
     chats_id = analyzer.chat_id
@@ -236,11 +235,10 @@ def lead_generation(id):
     mycursor.execute(f"SELECT word FROM vocabulary WHERE category_id = {category_id[0]}")
     words = mycursor.fetchall()
 
-    # Если найден лида с совпадающим chat_id, продолжаем цикл
     for lead in leads:
         for it in lead:
             counter = 0
-            # Запрос для получения всех сообщений, связанных с данным лидом
+            # Запит на отримання всіх повідомлень, пов'язаних з цим лідом
             select_messages_query = "SELECT messages.message FROM messages WHERE chats_id = %s AND chat_id = %s"
             insert_values = (chats_id, it,)
             mycursor.execute(select_messages_query, insert_values)
@@ -257,13 +255,13 @@ def lead_generation(id):
             existing_record = mycursor.fetchone()
 
             if existing_record:
-                # Запись существует, выполнение обновления
+                # Запис існує, виконання оновлення
                 update_query = "UPDATE topics SET interest_count = %s, updated_at = NOW() WHERE chat_id = %s AND chats_id = %s"
                 update_values = (counter, it, analyzer.chat_id)
                 mycursor.execute(update_query, update_values)
                 mydb.commit()
             else:
-                # Запись не существует, выполнение вставки
+                # Запис не існує, виконання вставки
                 insert_query = "INSERT INTO topics (chat_id, chats_id, topic, interest_count, created_at, updated_at) VALUES (%s, %s, %s, %s, NOW(), NOW())"
                 insert_values = (it, analyzer.chat_id, analyzer.topic, counter)
                 mycursor.execute(insert_query, insert_values)
@@ -284,11 +282,11 @@ def preprocess_text(text_tuple):
     lemmas = []
     for text in text_tuple:
         for sent in text:
-            if isinstance(sent, str):  # Проверяем, что элемент является строкой
-                # Токенизация текста
+            if isinstance(sent, str):  # Перевіряємо, що елемент є рядком
+                # Токенізація тексту
                 tokens = word_tokenize(sent)
                 filtered_tokens = []
-                # Лемматизация и удаление стоп-слов
+                # Лематизація та видалення стоп-слів
                 for token in tokens:
                     if token.lower() not in stop_words:
                         filtered_tokens.append(token)
@@ -310,17 +308,17 @@ def print_report(chat_id):
                 values = (analyzer.chat_id, result[1])
                 mycursor.execute(query, values)
                 responce = mycursor.fetchone()
-                name = str(responce[0]) if responce[0] is not None else "Неизвестно"
-                surname = str(responce[1]) if responce[1] is not None else "Неизвестно"
-                username = str(responce[2]) if responce[2] is not None else "Неизвестно"
-                msg = "Имя - " + name + "\n" + "Фамилия - " + surname + "\n" + "Имя пользователя - " + username
-                message = str(msg) + "\n" + "Количество заинтересованностей в заданной теме - " + str(result[4])
+                name = str(responce[0]) if responce[0] is not None else "Невідомо"
+                surname = str(responce[1]) if responce[1] is not None else "Невідомо"
+                username = "@" + str(responce[2]) if responce[2] is not None else "Невідомо"
+                msg = "Ім'я - " + name + "\n" + "Прізвище - " + surname + "\n" + "Ім'я користувача - " + username
+                message = str(msg) + "\n" + "Кількість зацікавлень у заданій темі - " + str(result[4])
                 bot.send_message(chat_id=chat_id, text=message)
                 counter+=1
         if counter == 0:
-            bot.send_message(chat_id=chat_id, text="В этом чате слишком мало упоминаний заданной темы")
+            bot.send_message(chat_id=chat_id, text="У цьому чаті дуже мало згадок про задану тему")
     else:
-        bot.send_message(chat_id=chat_id, text="Нет результатов для отчёта")
+        bot.send_message(chat_id=chat_id, text="Немає результатів для звіту")
 
 @bot.message_handler(func=lambda message: message.chat.type == "group" or message.chat.type == "supergroup")
 def handle_group_messages(message):
@@ -335,14 +333,14 @@ def handle_group_messages(message):
     mycursor.execute(check_query, check_values)
     result = mycursor.fetchone()
     if result is None:
-        # Запись данных в таблицу leads
+        # Запис даних у таблицю leads
         insert_query = "INSERT INTO leads (chat_id, chats_id, first_name, last_name, username) " \
                        "VALUES (%s, %s, %s, %s, %s)"
         insert_values = (chat_id, chats_id, first_name, last_name, username)
         mycursor.execute(insert_query, insert_values)
         mydb.commit()
 
-    # Сохранение сообщения в таблицу messages
+    # Збереження повідомлення до таблиці messages
 
     insert_query = "INSERT INTO messages (chat_id, chats_id, message) VALUES (%s, %s, %s)"
     insert_values = (chat_id, chats_id, message.text)
