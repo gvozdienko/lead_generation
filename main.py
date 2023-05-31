@@ -1,34 +1,24 @@
 import threading
-import aiohttp
-import telebot
-import mysql.connector
 from nltk import word_tokenize
 import pymorphy3
 import nltk
-from nltk.corpus import stopwords
 from create_tables import create_tables
 from telebot import types
 import openai
+import config
 
-openai.api_key = "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"
-# engine = "text-davinci-003"
-engine = "gpt-3.5-turbo"
+openai.api_key = config.GPT_API_KEY
+engine = config.GPT_ENGINE
 
 nltk.download('stopwords')
 nltk.download('punkt')
 
-bot_id = 6044610942
+bot_id = config.BOT_ID
 
-stop_words = set(stopwords.words('russian'))
-stop_words.update('-', ',', '/', '(', ')', '?', '//', '!', '@', '+', '.', ':', ';', '1', '2', '3', '4', '5', '6', '7',
-                  '8', '9', '0', 'глаголы', 'существительные')
+stop_words = config.STOP_WORDS
+
 # Подключение к базе данных
-mydb = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="root",
-    database="leads"
-)
+mydb = config.MYSQL
 
 # Создание курсора
 mycursor = mydb.cursor()
@@ -42,8 +32,7 @@ if not tables:
     create_tables()
 
 # Создание экземпляра бота
-bot = telebot.TeleBot("6044610942:AAFSAakXSNxj4L5RDSFKy5_dmKqEg8dogQk")
-
+bot = config.TELEGRAM_BOT_API_KEY
 
 # Класс для анализа чатов с использованием мьютексов
 class Analyzer:
@@ -70,7 +59,6 @@ class Analyzer:
 
 analyzer = Analyzer()
 
-
 # Обработчик команды /start
 @bot.message_handler(commands=['start'], chat_types=['private'])
 def send_welcome(message):
@@ -93,7 +81,7 @@ def send_welcome(message):
         chats_button = types.KeyboardButton('Чаты')
         # добавляем кнопку на клавиатуру
         keyboard.add(chats_button)
-        # создаем кнопку "Выбрать аты"
+        # создаем кнопку "Выбрать чаты"
         chats_button = types.KeyboardButton('Выбрать чат')
         # добавляем кнопку на клавиатуру
         keyboard.add(chats_button)
@@ -101,7 +89,6 @@ def send_welcome(message):
         bot.send_message(chat_id,
                          "Пожалуйста, добавьте меня в нужный чат, а затем нажмите кнопку Чаты, чтобы узнать был ли добавлен бот ",
                          reply_markup=keyboard)
-
 
 @bot.message_handler(content_types=['new_chat_members'])
 def on_new_chat_member(message):
@@ -115,16 +102,13 @@ def on_new_chat_member(message):
         bot.reply_to(message,
                      "Привет, сладкие попки. Дайте админские права")
 
-
 @bot.message_handler(func=lambda message: message.text == 'Чаты', chat_types=['private'])
 def show_chats(message):
     user_id = message.chat.id
     mycursor.execute("SELECT chat_id FROM chats WHERE user_id = %s", (user_id,))
     chats = mycursor.fetchall()
-
     # Создаем список для названий чатов
     chat_names = []
-
     # Для каждого чата находим его название и добавляем его в список
     for chat in chats:
         try:
@@ -132,7 +116,6 @@ def show_chats(message):
             chat_names.append(chat_info.title)
         except:
             pass
-
     # Если список пустой, значит бот не состоит ни в одном чате
     if not chat_names:
         bot.send_message(message.chat.id, "Бот не состоит ни в одном чате.")
@@ -140,17 +123,14 @@ def show_chats(message):
         # Отправляем список названий чатов в виде текста
         bot.send_message(message.chat.id, "Список чатов, в которых я состою:\n\n" + "\n".join(chat_names))
 
-
 @bot.message_handler(func=lambda message: message.text == 'Выбрать чат', chat_types=['private'])
 def select_chat(message):
     user_id = message.chat.id
     mycursor.execute("SELECT chat_id FROM chats WHERE user_id = %s", (user_id,))
     chats = mycursor.fetchall()
-
     # Создаем список для названий чатов и их идентификаторов
     chat_names = []
     chat_ids = []
-
     # Для каждого чата находим его название и добавляем его в список
     for chat in chats:
         try:
@@ -172,10 +152,8 @@ def select_chat(message):
             callback_data = str(chat_ids[i])
             button = types.InlineKeyboardButton(text=chat_names[i], callback_data=callback_data)
             keyboard.add(button)
-
         # Отправляем сообщение с использованием клавиатуры
         bot.send_message(message.chat.id, "Пожалуйста, выберите чат:", reply_markup=keyboard)
-
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -190,11 +168,11 @@ def callback_handler(call):
         bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id,
                                       reply_markup=None)
         if selected_topic == "Путешествия":
-            selected_topic = 'travel'
+            selected_topic = "travel"
         elif selected_topic == "Криптовалюта":
-            selected_topic = 'crypto'
+            selected_topic = "crypto"
         elif selected_topic == "IT":
-            selected_topic = 'it'
+            selected_topic = "it"
         analyzer.set_topic(selected_topic)
         send_choice_message(call.message.chat.id)
     elif call.data in ['analysis']:
@@ -221,7 +199,6 @@ def callback_handler(call):
         analyzer.set_chat_id(chats_id)
         send_topic_selection_message(call.message.chat.id)
 
-
 def send_topic_selection_message(id):
     markup = types.InlineKeyboardMarkup()
     button1 = types.InlineKeyboardButton('Криптовалюта', callback_data='Криптовалюта')
@@ -230,14 +207,12 @@ def send_topic_selection_message(id):
     markup.add(button1, button2, button3)
     bot.send_message(chat_id=id, text='Выберите тему', reply_markup=markup)
 
-
 def send_choice_message(id):
     markup = types.InlineKeyboardMarkup()
     button1 = types.InlineKeyboardButton('Анализ', callback_data='analysis')
     button2 = types.InlineKeyboardButton('Отчёт', callback_data='report')
     markup.add(button1, button2)
     bot.send_message(chat_id=id, text='Выберите следущее действие', reply_markup=markup)
-
 
 def lead_generation(id):
     chats_id = analyzer.chat_id
@@ -246,10 +221,10 @@ def lead_generation(id):
     mycursor.execute(select_lead_query, (chats_id,))
     leads = mycursor.fetchall()
     # Запрос
-    prompt = f"Похожие по смыслу глаголы и существительные для темы {analyzer.topic}. Ответ на 1500 символов, в формате перечисления по одному слову, без словосочетаний и выражений"
+    prompt = config.gpt_prompt(analyzer.topic)
     # Модель
     completion = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model=engine,
         messages=[
             {"role": "system", "content": prompt}
         ],
@@ -262,14 +237,10 @@ def lead_generation(id):
         token = token.lower()
         if token not in stop_words:
             generated_words.append(token)
-    if analyzer.topic == "crypto":
-        add_word_query(generated_words)
-    elif analyzer.topic == "IT":
-
-        add_word_query(generated_words)
-    elif analyzer.topic == 'travel':
-        add_word_query(generated_words)
-    mycursor.execute(f"SELECT word FROM {analyzer.topic}")
+    add_word_query(generated_words)
+    mycursor.execute(f"SELECT id FROM categories WHERE category = %s", (analyzer.topic, ))
+    category_id = mycursor.fetchone()
+    mycursor.execute(f"SELECT word FROM vocabulary WHERE category_id = {category_id[0]}")
     words = mycursor.fetchall()
 
     # Если найден лида с совпадающим chat_id, продолжаем цикл
@@ -282,11 +253,13 @@ def lead_generation(id):
             mycursor.execute(select_messages_query, insert_values)
             messages = mycursor.fetchall()
             messages = preprocess_text(messages)
+            print(messages)
             for word in words:
                 for w in word:
                     for message in messages:
                         if w == message:
                             counter = counter + 1
+                            print(w)
             query = "SELECT * FROM topics WHERE chat_id = %s AND chats_id = %s AND topic = %s"
             values = (it, analyzer.chat_id, analyzer.topic)
             mycursor.execute(query, values)
@@ -306,13 +279,14 @@ def lead_generation(id):
                 mydb.commit()
     print_report(id)
 
-
 def add_word_query(words):
-    add_word_query = f"INSERT IGNORE INTO {analyzer.topic} (word) VALUES (%s)"
+    query = f"SELECT id FROM categories WHERE category = %s"
+    mycursor.execute(query, (analyzer.topic, ))
+    category_id = mycursor.fetchone()
+    add_word_query = f"INSERT IGNORE INTO vocabulary (word, category_id) VALUES (%s, %s)"
     for word in words:
-        mycursor.execute(add_word_query, (word,))
+        mycursor.execute(add_word_query, (word, category_id[0]))
     mydb.commit()
-
 
 def preprocess_text(text_tuple):
     morph = pymorphy3.MorphAnalyzer()
@@ -330,31 +304,32 @@ def preprocess_text(text_tuple):
                         parsed_token = morph.parse(token)[0]
                         normal_form = parsed_token.normal_form
                         lemmas.append(normal_form)
-
     return lemmas
-
 
 def print_report(chat_id):
     query = "SELECT * from topics WHERE chats_id = %s AND topic = %s"
     values = (analyzer.chat_id, analyzer.topic)
     mycursor.execute(query, values)
     results = mycursor.fetchall()
-    message = ""
+    counter = 0
     if results:
         for result in results:
-            query = "SELECT first_name, last_name, username from leads WHERE chats_id = %s AND chat_id = %s"
-            values = (analyzer.chat_id, result[1])
-            mycursor.execute(query, values)
-            responce = mycursor.fetchone()
-            name = str(responce[0]) if responce[0] is not None else "Неизвестно"
-            surname = str(responce[1]) if responce[1] is not None else "Неизвестно"
-            username = str(responce[2]) if responce[2] is not None else "Неизвестно"
-            msg = "Имя - " + name + "\n" + "Фамилия - " + surname + "\n" + "Имя пользователя - " + username
-            message = str(msg) + "\n" + "Количество заинтересованностей в заданной теме - " + str(result[4])
-            bot.send_message(chat_id=chat_id, text=message)
+            if result[4] > config.INTERESTS:
+                query = "SELECT first_name, last_name, username from leads WHERE chats_id = %s AND chat_id = %s"
+                values = (analyzer.chat_id, result[1])
+                mycursor.execute(query, values)
+                responce = mycursor.fetchone()
+                name = str(responce[0]) if responce[0] is not None else "Неизвестно"
+                surname = str(responce[1]) if responce[1] is not None else "Неизвестно"
+                username = str(responce[2]) if responce[2] is not None else "Неизвестно"
+                msg = "Имя - " + name + "\n" + "Фамилия - " + surname + "\n" + "Имя пользователя - " + username
+                message = str(msg) + "\n" + "Количество заинтересованностей в заданной теме - " + str(result[4])
+                bot.send_message(chat_id=chat_id, text=message)
+                counter+=1
+        if counter == 0:
+            bot.send_message(chat_id=chat_id, text="В этом чате слишком мало упоминаний заданной темы")
     else:
         bot.send_message(chat_id=chat_id, text="Нет результатов для отчёта")
-
 
 @bot.message_handler(func=lambda message: message.chat.type == "group" or message.chat.type == "supergroup")
 def handle_group_messages(message):
@@ -382,7 +357,6 @@ def handle_group_messages(message):
     insert_values = (chat_id, chats_id, message.text)
     mycursor.execute(insert_query, insert_values)
     mydb.commit()
-
 
 # Запуск бота
 bot.polling(none_stop=True)
