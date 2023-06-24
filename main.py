@@ -221,7 +221,7 @@ def lead_generation(id):
             {"role": "system", "content": prompt}
         ],
         temperature=0.6,
-        max_tokens=2500
+        max_tokens=3800
     )
     tokens = word_tokenize(completion.choices[0]['message']['content'])
     generated_words = []
